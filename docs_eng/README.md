@@ -1,0 +1,8 @@
+ # stove
+ 
+[По-русски](README.md) | ** In english ** 
+ 
+# DEVELOPMENT OF THE LAYOUT OF THE SOFTWARE AND HARDWARE COMP PLEX FOR TEMPERATURE CONTROL 
+IN FURNACES FOR GLASS MASKS BASED ON THE ATMEGA2560 MICROCONTROLLER
+ 
+ Code use for control temp write in Arduino IDE for board Arduino MEGA.
