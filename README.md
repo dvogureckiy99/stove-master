@@ -22,7 +22,7 @@
 или [здесь](/docs/report.pdf "вырезанный").
 
 [Файлы, которые отправлялись на конференцию](/docs "открыть папку"):
-1. [Доклад в формате WORD](/docs/report_full.pdf)
+1. [Доклад в формате pdf](/docs/report_full.pdf)
 1. [Доклад в формате WORD](/docs/report_full.docx "открыть")
 1. [Презентация доклада](/docs/presentation.ppt "открыть")
 
