@@ -13,7 +13,7 @@
  CJMCU-MAX31856. 
 Для ввода/вывода информации был разработан пользовательский интерфейс на основе TFT дисплея Nextion. 
 
-[Закладки, которые использовались при выполгнении проекта.](/docs/stove_bookmarks.html)
+[Закладки, которые использовались при выполгнении проекта.](/docs/stove_bookmarks.md)
 
 Проект был представлен на 
 [VII Научно-практической конференции «Наука настоящего и будущего» 2019](https://nnb.etu.ru/postupayushhim-v-magistraturu/konferencii-predydushhih-let/vii-nauchno-prakticheskaya-konferenciya-nauka-nastoyashhego-i-budushhego-2019).
@@ -34,3 +34,5 @@
 
 Программа для дисплея Nextion была написана на языке, описывемым в [этом документе]()
 Программа для компиляции [stove.HMI](/stove.HMI)
+
+<a href="https://google.ru" target="_blank" title="Гугл">один, пример <a href="https://yandex.ru" target="_blank" title="Яндекс">два.
