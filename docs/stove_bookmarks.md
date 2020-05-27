@@ -3,7 +3,7 @@
      It will be read and overwritten.
      DO NOT EDIT! -->
 <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
-<TITLE>Bookmarks</TITLE>
+<! <TITLE>Bookmarks</TITLE> -->
 <H1>Bookmarks Menu</H1>
 
 <DL><p>
