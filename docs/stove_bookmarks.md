@@ -1,3 +1,12 @@
+<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<!-- This is an automatically generated file.
+     It will be read and overwritten.
+     DO NOT EDIT! -->
+<META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
+<TITLE>Bookmarks</TITLE>
+<H1>Bookmarks Menu</H1>
+
+<DL><p>
             <DT><H3 ADD_DATE="1589473120" LAST_MODIFIED="1589473121">Stove</H3>
             <DL><p>
                 <DT><H3 ADD_DATE="1589473120" LAST_MODIFIED="1589473121">комплектующие</H3>
@@ -99,3 +108,4 @@
                     </DL><p>
                 </DL><p>
             </DL><p>
+</DL>
