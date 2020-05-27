@@ -13,6 +13,8 @@
  CJMCU-MAX31856. 
 Для ввода/вывода информации был разработан пользовательский интерфейс на основе TFT дисплея Nextion. 
 
+[Закладки, которые использовались при выполгнении проекта.](/docs/stove_bookmarks.html)
+
 Проект был представлен на 
 [VII Научно-практической конференции «Наука настоящего и будущего» 2019](https://nnb.etu.ru/postupayushhim-v-magistraturu/konferencii-predydushhih-let/vii-nauchno-prakticheskaya-konferenciya-nauka-nastoyashhego-i-budushhego-2019).
 
@@ -28,3 +30,7 @@
 
 Программа была написана на языке "C" в Arduino IDE.
 В [этой папке](/libraries) находятся библиотеки, необходимые для компиляции основного файла.
+Основная программа для компиляции [stove.ino](/stove.ino)
+
+Программа для дисплея Nextion была написана на языке, описывемым в [этом документе]()
+Программа для компиляции [stove.HMI](/stove.HMI)
