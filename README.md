@@ -32,7 +32,6 @@
 В [этой папке](/libraries) находятся библиотеки, необходимые для компиляции основного файла.
 Основная программа для компиляции [stove.ino](/stove.ino)
 
-Программа для дисплея Nextion была написана на языке, описывемым в [этом документе]()
+Документация на дисплей [здесь](components/nextion_docs/The_Nextion_Editor_Guide_trans.pdf)
+Программа для дисплея Nextion была написана на специальном языке. Инструкции описаны в [этом документе](components/nextion_docs/istruction_set_trans.pdf).
 Программа для компиляции [stove.HMI](/stove.HMI)
-
-<a href="https://google.ru" target="_blank" title="Гугл">один, пример <a href="https://yandex.ru" target="_blank" title="Яндекс">два.
