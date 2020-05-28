@@ -34,8 +34,8 @@
 1. [В видео]() демонстриуется работа интерфейса дисплея.
 2. 
 
-<img src="https://github.com/my000own000files1/stove-master/blob/master/docs/images/icon.png" alt="anonymous" /> 
-### Структура программы:
+
+### <img src="https://github.com/my000own000files1/stove-master/blob/master/docs/images/icon.png" alt="anonymous" />  Структура программы:
 
 Программа была написана на языке "C" в Arduino IDE. [Примеры, которые использовались во время выполнения проекта.](examples)
 
