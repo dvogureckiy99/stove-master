@@ -3,15 +3,21 @@ Ogureckiy Dmitriy
 ogureckiy98@mail.ru
 */
 //проблема с расчетом шага при температуре большей температуры установочной, шаг как будто слишком маленький и setpoint очень быстро изменяется
-#include "stove.h" //все основные определения
+#include "stove.h" //все                                                           основные определения
 
 void setup() 
 {
-
+   // Serial: 0 (rx) и 1 (tx), Serial1: 19 (rx) 18 (tx)
    Serial.begin(115200);
+   debugSerial.begin(115200);
    Serial.print("baud=115200ÿÿÿ"); //установка скорости экрана
    t_MCU = now(); //записываем время перового запуска микроконтроллера
    
+
+   //инициализация SD-card
+   pinMode(CS_SD, OUTPUT);
+   init_SD();
+
    //turn the PID on
   //при первом запуске происходит также инициализация Initialize()
   myPID.SetMode(MANUAL);
@@ -23,7 +29,7 @@ void setup()
   Timer3.pwm( PIN_OUTPUT,  Output );                // задать шим сигнал  с  коэффициентом заполнения 
 
   // Создание объекта MAX31856 с определением пинов
-  temperature = new MAX31856(SDI, SDO, CS, SCK);
+  temperature = new MAX31856(SDI, SDO, CS_IC, SCK);
   // Инициализация решистров
   temperature->writeRegister(REGISTER_CR0, CR0_INIT);
   temperature->writeRegister(REGISTER_CR1, CR1_INIT);
@@ -69,6 +75,7 @@ void loop ()
     jumpderivative();
     
     senddata();
+    //Serial.print((String)"page SD_CARD_FAILED"+char(255)+char(255)+char(255)); //выключаем мигание экрана, если нет оповищения об ошибке
 
     last_time = millis();
   }
@@ -80,6 +87,10 @@ void loop ()
     changeLinearly();
     
     readNextioncommand();
+    
+    //проверка наличия ошибок
+    if((mistake_id == 0)&&(mistake_2 == 0))
+    Serial.print((String)"main.ERROR.en=0"+char(255)+char(255)+char(255)); //выключаем мигание экрана, если нет оповищения об ошибке
 }
 
 void checkCommand(String ins) //парсинг сообщение от экрана
@@ -90,7 +101,7 @@ void checkCommand(String ins) //парсинг сообщение от экра�
     String command = ins.substring(0,1); //0 - позиция символа 1 - число символов
     // А все остальное - данные:
     String last = ins.substring(1);
-    switch (command.toInt())
+    switch (command[0])
     {
         case PID_SWITCH: 
         {
@@ -151,68 +162,67 @@ void checkCommand(String ins) //парсинг сообщение от экра�
             break;
         }
         
-        case TEMP_POINT  :
+        case TEMP_POINT  : //(last - номер программы)
         {
-            // наше сообщение (пример) 1,20,600:2,40,300:3,60,300:4,0,0:           
-            String value = ""; //проверяемый символ(строка)
-            int point_number = 0; //номер точки
-            int parametrs_num = 0; //номер параметра 
-            //(0-номер точки,1-время в мин,2-температура)
-            int i;//счетчик
-            for(i = 0; i < last.length(); i++ )//проходим по всей строке
-            {   
-                value += last[i];//запись следующего символа
-                if(last[i] == ',')//запятая в роли разделителя
+            String adress = "";
+            uint32_t time = 0;
+            //формируем адресс
+            adress += "program/";
+            adress += last;
+            adress += ".txt";
+            file_obj = SD.open(adress,FILE_READ);//открытие файла, файл должен быть создан раннее
+            for(int i = 1; i<11;i++) // i - номер точки
+            {
+                if(file_obj.seek((i-1)*17))//перенос каретки на нужную строку
                 {
-                    if(parametrs_num == 0)//номер точки
-                    {
-                        point_number = value.toInt();//запись номера точки
-                        parametrs_num ++;//переход следующий парметр
-                        value = ""; //удаляем значение
-                        continue;
-                    }
-                    if(parametrs_num == 1)//время
-                    {
-                        time_point[point_number-1] = value.toInt();//запись времени
-                        parametrs_num = 0; // достигли max-1 параметра
-                        value = ""; //удаляем значение
-                        continue;
-                    }
-                }
-                if(last[i] == ':')
-                {
-                    temp_point[point_number - 1] = value.toInt(); //записываем температуру
+                    char buf[16] = {0}; // buf : char[16] -> char* -> void*
+                    file_obj.read(buf,15); // первую строку   
+                    last = buf ;             
+                    String value = ""; //проверяемый символ(строка)
+                    value = last.substring(3,7); //часы
+                    time += value.toInt();
+                    time *= 60; //перевод в минуты
+                    value = last.substring(8,10); //минуты
+                    time += value.toInt();
+                    time_point[i-1] = time;//запись времени в мин
+                    time = 0;
+                    value = last.substring(11,15);//темп.
+                    temp_point[i - 1] = value.toInt(); //записываем температуру
+
                     //расчет шага времени
-                    if (point_number == 1) //записываем шаг времени
+                    if (i == 1) //записываем шаг времени
                     {//расчёт шага изменения температуры
-                        int16_t denominator = (temp_point[point_number - 1] - Input);
+                        int16_t denominator = (temp_point[i - 1] - Input);
                         if (denominator != 0)
                         {
-                            time_step[point_number - 1] = (60 * time_point[point_number - 1]);
-                            time_step[point_number - 1] /= (denominator); //1 шаг времени
-                            time_step[point_number - 1] = abs(time_step[point_number - 1]);
+                            time_step[i - 1] = (60 * time_point[i - 1]);
+                            time_step[i- 1] /= (denominator); //1 шаг времени
+                            time_step[i - 1] = abs(time_step[i - 1]);
                         }
                         else
-                            time_step[point_number - 1] = 0;//если температура постоянна на участке
-                                                             //шаг времени = 0
+                            time_step[i - 1] = 0;//если температура постоянна на участке
+                                                            //шаг времени = 0
                     }
                     else
                     {
-                        int16_t denominator = (temp_point[point_number - 1] - temp_point[point_number - 2]);
+                        int16_t denominator = (temp_point[i - 1] - temp_point[i - 2]);
                         if (denominator != 0)
                         {
-                            time_step[point_number - 1] = 60 * (time_point[point_number - 1]);
-                            time_step[point_number - 1] /= denominator;
-                            time_step[point_number - 1] = abs(time_step[point_number - 1]);  //последующие шаги времени 
+                            time_step[i- 1] = 60 * (time_point[i - 1]);
+                            time_step[i - 1] /= denominator;
+                            time_step[i - 1] = abs(time_step[i- 1]);  //последующие шаги времени 
                         }
                         else
-                            time_step[point_number - 1] = 0;//если температура постоянна на участке
+                            time_step[i - 1] = 0;//если температура постоянна на участке
                                                             //шаг времени = 0
                     }
-                    value = ""; //удаляем значение            
-		                     
                 }
-            }
+                else//файл не проинициализирован (не имеет нужного размера).Нужно инициализировать Sd-карту заново и потом повторить
+                {
+                    SD_CARD_FAILED();
+                    break; //выходи из цикла
+                }
+            }        
             break;
         }
         case POINT_SWITCH :  //8 включение новой программы  слежения за заданной температурой
@@ -222,7 +232,6 @@ void checkCommand(String ins) //парсинг сообщение от экра�
                 flag_point_switch = 1;
                 Setpoint = Input ; // записываем текущую температуру
                 interval = 0; //возвращение на 1-ый интервал
-                Serial.print((String)"cle 24,0"+char(255)+char(255)+char(255)); //очистить график
             break;
         }
         
@@ -267,28 +276,33 @@ void checkCommand(String ins) //парсинг сообщение от экра�
         }  
         case INTERVAL_HIGHLIGHING :  //11 подсвечивание интервала
         {
-            if(last.toInt() == 1)// вызвано из окна с первыми 5 точками
+            if(flag_first_run_interval)
             {
-                if(interval < 5)
+                debugSerial.println("INTERVAL_HIGHLIGHING");
+                if(last.toInt() == 1)// вызвано из окна с первыми 5 точками
                 {
-                    int i = interval*8+1;
-                    int max_id = (interval+1)*8;
-                    for(i; i <= max_id  ; i++)
+                    
+                    if(interval < 5) //первый запуск равно 0
                     {
-                        Serial.print((String)"points_1_5.b["+i+"].bco=64528"+char(255)+char(255)+char(255)); //поменять цвет
+                        int i = interval*8+1; //1
+                        int max_id = (interval+1)*8;//8
+                        for(i; i <= max_id  ; i++)
+                        {
+                            Serial.print((String)"points_1_5.b["+i+"].bco=64528"+char(255)+char(255)+char(255)); //поменять цвет
+                        }
                     }
                 }
-            }
-            else//вызвано из окна с последними 5 точками
-            {
-                if(interval > 4)
+                else//вызвано из окна с последними 5 точками
                 {
-                    int number_line = interval-4; 
-                    int i = number_line*8+1;
-                    int max_id = number_line*8;
-                    for(i; i <= max_id  ; i++)
+                    if(interval > 4)
                     {
-                        Serial.print((String)"points_5_10.b["+i+"].bco=64528"+char(255)+char(255)+char(255)); //поменять цвет
+                        int number_line = interval-4; 
+                        int i = number_line*8+1;
+                        int max_id = number_line*8;
+                        for(i; i <= max_id  ; i++)
+                        {
+                            Serial.print((String)"points_5_10.b["+i+"].bco=64528"+char(255)+char(255)+char(255)); //поменять цвет
+                        }
                     }
                 }
             }
@@ -296,9 +310,162 @@ void checkCommand(String ins) //парсинг сообщение от экра�
         }  
         case MISTAKE :  //12 вывод сообщения об ошибке
         {          
+            if(mistake_id)
             Serial.print((String)"vis "+mistake_id+",1"+char(255)+char(255)+char(255)); //показать сообщение об ошибке
+            if(mistake_2)
+            Serial.print((String)"vis 4,1"+char(255)+char(255)+char(255)); //показать сообщение об ошибке initialization SD-card failed!
             break;
         }   
+        case INITIALIZATION_SD :  //инициализация SD-карты
+        {          
+            init_SD();
+            break;
+        } 
+        case WRITE_POINT:  //операция записи на флэш-носитель данных конкретной точки программы
+        {          
+            int P=0 ;//номер точки
+            String Np = last.substring(0,2);//символы номера программы
+            int N = Np.toInt();
+            String nP = last.substring(3,5);//символы номера точки
+            P = nP.toInt(); //преобразуем в число
+            String adress = "";//адрес файла программы
+            last = last.substring(3) ; //обрезаем номер программы
+            //формируем адресс
+            adress += "program/";
+            adress += N;
+            adress += ".txt";
+            file_obj = SD.open(adress,FILE_WRITE);//открытие файла, файл должен быть создан раннее
+            if(file_obj.seek((P-1)*17))//перенос каретки на нужную строки
+            {
+                file_obj.print(last);//запись данных точки
+                file_obj.close();
+            }
+            else//файл не проинициализирован (не имеет нужного размера).Нужно инициализировать Sd-карту заново и потом повторить
+            {
+                debugSerial.println("wrong write on SD-card");
+                SD_CARD_FAILED();
+            }
+            break;
+        } 
+        case READ_POINT :  //операция чтения с DS-карты и записи в HMI данных точки на страницу "set_points"
+        {          
+            String adress = "";
+            int P = 0;//номер точки
+            String N ="";//номер программы
+            String value = ""; //проверяемый символ(строка)
+            for(int i = 0; i < last.length(); i++ )//проходим по всей строке
+            {
+                if(last[i] == ',')//запятая в роли разделителя
+                {
+                        N = value;//запись номера программы
+                        value = ""; //удаляем значение
+                        continue;
+                }
+                value += last[i];//запись следующего символа
+            }
+            P = value.toInt();//запись номера точки
+            //формируем адресс
+            adress += "program/";
+            adress += N;
+            adress += ".txt";
+            file_obj = SD.open(adress,FILE_WRITE);//открытие файла, файл должен быть создан раннее
+            if(file_obj.seek((P-1)*17))//перенос каретки на нужную строки
+            {                   
+                char buf[16] = {0}; // buf : char[16] -> char* -> void*
+                file_obj.read(buf,15); // первую строку   
+                last = buf ; 
+                file_obj.close();
+                set_point_data(last);//последовательная установка в поле дисплея на стр. set_points
+            }
+            else//файл не проинициализирован (не имеет нужного размера).Нужно инициализировать Sd-карту заново и потом повторить
+            {
+                debugSerial.println("wrong read point from SD-card");
+                SD_CARD_FAILED();
+            }
+            break;
+        }
+        case READ_POINTS :  //операция чтения точек программы с DS-карты и записи в HMI данных точек на страницах points...
+        {          
+            String adress = "";
+            int P = 0;//номер точки
+            String N ="";//номер программы
+            String value = ""; //проверяемый символ(строка)
+            for(int i = 0; i < last.length(); i++ )//проходим по всей строке
+            {         
+                if(last[i] == ',')//запятая в роли разделителя
+                {
+                        N = value;//запись номера программы
+                        value = ""; //удаляем значение
+                        continue;
+                }
+                value += last[i];//запись следующего символа
+            }
+            P = value.toInt();//запись номера страницы
+            //формируем адресс
+            adress += "program/";
+            adress += N;
+            adress += ".txt";
+            file_obj = SD.open(adress,FILE_WRITE);//открытие файла, файл должен быть создан раннее
+            if(file_obj)
+            {
+              debugSerial.print("successfully open file:");
+              debugSerial.println(adress);
+            }else
+            {
+              debugSerial.print("unsuccessfully open file:");
+              debugSerial.println(adress);
+            }
+            if(P) //считываем(устанавливаем) 6-10 строки
+            {
+                for(int i = 6; i<11;i++)
+                {
+                     if(file_obj.seek((i-1)*17))//перенос каретки на нужную строки
+                    {
+                        debugSerial.print("successfully cursor shift:");
+                        debugSerial.println(i);                      
+                        char buf[16] = {0}; // buf : char[16] -> char* -> void*
+                        file_obj.read(buf,15); // первую строку   
+                        last = buf ;
+                        debugSerial.print("last =");
+                        debugSerial.println(last);           
+                        set_point_data2(last, i);// отправляем данные в дисплей
+                    }
+                    else//файл не проинициализирован (не имеет нужного размера).Нужно инициализировать Sd-карту заново и потом повторить
+                    {
+                        debugSerial.println("wrong read points from SD-card");
+                        SD_CARD_FAILED();
+                        break; //выходи из цикла
+                    }
+                }
+            }
+            else //считываем(устанавливаем) первые 5 строк
+            {
+                for(int i = 1; i<6;i++)
+                {
+                     if(file_obj.seek((i-1)*17))//перенос каретки на нужную строки
+                    {
+                        debugSerial.print("successfully cursor shift:");
+                        debugSerial.println(i);                      
+                        char buf[16] = {0}; // buf : char[16] -> char* -> void*
+                        file_obj.read(buf,15); // первую строку   
+                        last = buf ;
+                        debugSerial.print("last =");
+                        debugSerial.println(last);              
+                        set_point_data2(last, i);//отправляем данные в дисплей
+                    }
+                    else//файл не проинициализирован (не имеет нужного размера).Нужно инициализировать Sd-карту заново и потом повторить
+                    {
+                        debugSerial.println("wrong read points from SD-card");
+                        SD_CARD_FAILED();
+                        break; //выходи из цикла
+                    }
+                }
+            }
+            file_obj.close();
+            debugSerial.print("successfully close file:");
+            debugSerial.println(adress);
+            break;
+        } 
     }    
 }
 
@@ -306,45 +473,56 @@ void checkCommand(String ins) //парсинг сообщение от экра�
 void checkMAX31856(void)//-------------------обработка оповещений от термоконтроллера----------------
 {
     //-------------------обработка оповещений от термоконтроллера----------------
-    if((Input == FAULT_OPEN)&&(flag_point_switch == 1)) // No thermocouple
+    if((Input == FAULT_OPEN)) // No thermocouple
     {//pause
         mistake_id = 1; //запись номера ошибки 
         Output = 1023 ; //выключаем нагрев
         myPID.SetMode(MANUAL); //ручной режим ПИД
-        flag_point_switch = 0; //останавливаем работу на  интервале
-        t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
-        t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
+        if(flag_point_switch==1)
+        {
+            t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
+            t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
+            flag_point_switch = 0; //останавливаем работу на  интервале
+        }
         Serial.print((String)"page FAULT_OPEN"+char(255)+char(255)+char(255)); //страница с оповещением
         Serial.print((String)"main.bt1.val=1"+char(255)+char(255)+char(255)); //изменение состояния индикатора паузы
         Serial.print((String)"main.ERROR.en=1"+char(255)+char(255)+char(255)); //включаем мигание экрана
     }
-    if((Input == FAULT_VOLTAGE)&&(flag_point_switch == 1)) //  Under/over voltage error.  Wrong thermocouple type?
+    if((Input == FAULT_VOLTAGE)) //  Under/over voltage error.  Wrong thermocouple type?
     {//pause
         mistake_id = 2;//запись номера ошибки
         Output = 1023 ; //выключаем нагрев
         myPID.SetMode(MANUAL); //ручной режим ПИД
-        flag_point_switch = 0;//останавливаем работу на  интервале
-        t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
-        t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
+        if(flag_point_switch==1)
+        {
+            t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
+            t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
+            flag_point_switch = 0; //останавливаем работу на  интервале
+        }
         Serial.print((String)"page FAULT_VOLTAGE"+char(255)+char(255)+char(255)); //страница с оповещением
         Serial.print((String)"main.bt1.val=1"+char(255)+char(255)+char(255)); //изменение состояния индикатора паузы
         Serial.print((String)"main.ERROR.en=1"+char(255)+char(255)+char(255)); //включаем мигание экрана
     }
-    if((Input == NO_MAX31856)&&(flag_point_switch == 1)) // MAX31856 not communicating or not connected
+    if((Input == NO_MAX31856)) // MAX31856 not communicating or not connected
     {//pause
         mistake_id = 3;//запись номера ошибки
         Output = 1023 ; //выключаем нагрев
         myPID.SetMode(MANUAL); //ручной режим ПИД
-        flag_point_switch = 0;//останавливаем работу на  интервале
-        t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
-        t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
+        if(flag_point_switch==1)
+        {
+            t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
+            t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
+            flag_point_switch = 0; //останавливаем работу на  интервале
+        }
         Serial.print((String)"page NO_MAX31856"+char(255)+char(255)+char(255)); //страница с оповещением
         Serial.print((String)"main.bt1.val=1"+char(255)+char(255)+char(255)); //изменение состояния индикатора паузы
         Serial.print((String)"main.ERROR.en=1"+char(255)+char(255)+char(255)); //включаем мигание экрана
     }
     if((Input == FAULT_OPEN)||(Input == FAULT_VOLTAGE )||(Input == NO_MAX31856)) { Input = 0 ;}; //вывод нулевой температуры
     if((Input != FAULT_OPEN)&&(Input != FAULT_VOLTAGE )&&(Input != NO_MAX31856))
-    Serial.print((String)"main.ERROR.en=0"+char(255)+char(255)+char(255)); //выключаем мигание экрана, если нет оповищения об ошибке
+    {
+        mistake_id = 0 ; //нет ошибки
+    }
     //---------------------------------------------------------------------------
 }
 
@@ -419,7 +597,7 @@ void changeLinearly(void)//алгоритм слежения за целевой
                             Setpoint = Setpoint+1;
                             else ////если нет, то идём  вниз
                             Setpoint = Setpoint-1;     
-                            if( get_minute(t_INT_run) >= time_point[i])//достижение установленного времени работы интервала
+                            if( get_minute(t_INT_run) >= time_point[i] )//достижение установленного времени работы интервала
                             {
                                 Setpoint = temp_point[i];//поддерживаем установленное значения температуры
                                 if(((compare==1)&&(Input <= temp_point[i]))||((compare==0)&&(Input >= temp_point[i])))
@@ -557,4 +735,116 @@ void  movingAverage(void)//скользящее среднее
     // вычисляем среднее значение:
     Input = total / numReadings;
     //----------------------------------------
+}
+
+void init_SD() //инициализация SD-карты
+{
+    
+    //становится true, если он равен 11 (1 успешная инициализация + 10 успешно созданных файла)
+    
+    //инициализация
+    debugSerial.println("Initializing SD card...");
+    if(SD.begin(CS_SD)) 
+    {
+         flag_true_init++;
+    }
+    else
+    {  
+      if(flag_true_init==0)
+      {
+        SD_CARD_FAILED();//карта не была раньше активирована
+        return;  
+      }
+      else
+      {
+        return;
+      }
+    }
+    if(!SD.exists("program"))//нет папки для программ
+    {
+        SD.mkdir("program"); //то создаем
+    }
+
+    String name_txt = "" ;
+    for(int i = 1; i <= 10; i++ ) //проверяем, созданы ли файлы программ, если надо создаём
+    {
+        name_txt = "program/";
+        name_txt += (String)(i);
+        name_txt += ".txt";
+        file_obj = SD.open(name_txt, FILE_WRITE); //создаём/открываем файл
+        debugSerial.print("open file ");
+        debugSerial.println(i);
+        if(file_obj) //файл есть
+        {
+            if(file_obj.size()<SIZE_PROGRAM_FILE)//файл не проинициализирован
+            {
+                for(int j = 1; j < 10;j++) //заполняем строковыми значениями
+                {
+                  file_obj.print(0);
+                  file_obj.print(j);
+                  file_obj.println(",0000,00,0000");
+                }
+                file_obj.print(10);
+                file_obj.println(",0000,00,0000");
+            }
+            flag_true_init++;
+        }
+        file_obj.close();//закрыли и сохранили
+    }
+    
+    if(flag_true_init==11) //успешная иниц.
+    {
+        debugSerial.println("initialization done.");
+        if(mistake_2)
+        {   //показать, что SD-карта успешно инициализирована
+            Serial.print((String)"page SD_CARD_FAILED"+char(255)+char(255)+char(255)); //страница с оповещением
+            Serial.print((String)"vis t0,0"+char(255)+char(255)+char(255)); 
+            Serial.print((String)"vis t1,1"+char(255)+char(255)+char(255));
+            Serial.print((String)"vis b0,0"+char(255)+char(255)+char(255)); 
+            mistake_2 = 0;
+        }
+    }
+    else //неуспешная иниц.
+    {
+        SD_CARD_FAILED();
+        flag_true_init = 0;//обновляем флаг инициализации
+    }
+}
+
+void SD_CARD_FAILED()//при неуспешной инициализации файла
+{
+    debugSerial.println("initialization failed!"); 
+    mistake_2 = 1;//запись номера ошибки initialization SD-card failed!
+    Serial.print((String)"page SD_CARD_FAILED"+char(255)+char(255)+char(255)); //страница с оповещением
+    Serial.print((String)"main.ERROR.en=1"+char(255)+char(255)+char(255)); //включаем мигание экрана и окна с ошибками
+}
+
+void set_point_data(String str)
+{
+    String value = ""; //проверяемый символ(строка)
+    value = str.substring(3,7); //часы
+    Serial.print((String)"set_points.t1.txt=\""+value+"\""+char(255)+char(255)+char(255));
+    value = str.substring(8,10); //минуты
+    Serial.print((String)"set_points.t7.txt=\""+value+"\""+char(255)+char(255)+char(255));
+    value = str.substring(11,15);//темп.
+    Serial.print((String)"set_points.t8.txt=\""+value+"\""+char(255)+char(255)+char(255));    
+}
+
+void set_point_data2(String str, int s) //s-номер точки (1-10)
+{
+    String value = ""; //проверяемый символ(строка)
+    int num = 0;//номер поля
+    if(s>5)
+    {
+        s-=5; //поправка для дисплея (теперь s=1...5)
+    }
+    value = str.substring(3,7); //часы
+    num = 3+8*(s-1) ;
+    Serial.print((String)"b["+num+"].txt=\""+value+"\""+char(255)+char(255)+char(255));
+    value = str.substring(8,10); //минуты
+    num = 5+8*(s-1) ;
+    Serial.print((String)"b["+num+"].txt=\""+value+"\""+char(255)+char(255)+char(255));
+    value = str.substring(11,15);//темп.
+    num = 7+8*(s-1) ;
+    Serial.print((String)"b["+num+"].txt=\""+value+"\""+char(255)+char(255)+char(255));    
 }
