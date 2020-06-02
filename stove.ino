@@ -2,120 +2,36 @@
 Ogureckiy Dmitriy 
 ogureckiy98@mail.ru
 */
-
-#include <MAX31856_my.h>
-#include <PID_v2.h>
-#include <TimerThree.h>
-#include <stdint.h>
-typedef float  float32_t;
-typedef double double32_t;
-
-
-#include <TimeLib.h>
-time_t t_MCU ; //записываем время перового запуска микроконтроллера
-time_t t_ALG; // время запуска программы
-time_t t_ALG_last_run = 0; //время работы алгоритма перед включением паузы
-time_t t_ALG_run; // время работы алгоритима
-time_t t_INT; // время запуска работы на участке
-time_t t_INT_last_run = 0; //время работы интервала перед включением паузы
-time_t t_INT_run; // время работы интервала
-time_t t_NOW; // время, необходимое для вывода
-
-//Расшифровка управляющих команд протокола передачи данных
-//формат сообщения #12;
-// # - признак начала сообщения
-//1- байт номера команды
-//2- байт номера действия или данные
-// ; - признак конца команды
-//номер команды
- 
-#define PID_SWITCH  2 
-#define SETPOINT 3
-#define OUTPUT 4
-#define KOEFF_PROPORTIONAL 5
-#define KOEFF_INTEGRAL 6
-#define TEMP_POINT 7  //точки установки температуры
-#define POINT_SWITCH  8//включение выключение изменение температуры по заданному алгоритму
-#define POINT_RUN  9  //пауза и выход из паузы
-#define RETURN_INTERVAL  10 //вернуться на интервал  
-//номер действия
-#define ON  1
-#define OFF 0
-
-
-
-//Define Variables we'll be connecting to
-unsigned int Setpoint = 400; //установочная темепратура
-unsigned int Input; //настоящая температура
-int Output = 1023;  //  скважность сигнала
-double Kp=10; //коэффициент пропорнционального звена 
-double Ki=0; //коэффициент интегрирующего звена
-byte SampleTime = 1 ; // частота вызова ПИД (в сек)
-
-//Specify the links and initial tuning parameters
-//по умолчанию(SetOutputLimits(0, 255);   inAuto = false;)
-PID myPID(&Input, &Output, &Setpoint, Kp, Ki, REVERSE);
-#define PIN_OUTPUT 2 //выход , решулирующий температуру
-unsigned long last_time= 0; //последнее время заупска алгоритма
-                                                  
-//connecting IC
-//подключаю питание через сопротивление 1,3 кОМ т.е. ток питания 3,8 мА , что соответствует даташиту
-#define SCK    11
-#define CS     10
-#define SDI    13 //
-#define SDO    12 //
-#define CR0_INIT  (CR0_AUTOMATIC_CONVERSION + CR0_OPEN_CIRCUIT_FAULT_TYPE_K  + CR0_NOISE_FILTER_50HZ )
-#define CR1_INIT  (CR1_AVERAGE_2_SAMPLES + CR1_THERMOCOUPLE_TYPE_K)
-#define MASK_INIT (~(MASK_VOLTAGE_UNDER_OVER_FAULT + MASK_THERMOCOUPLE_OPEN_FAULT))
-MAX31856 *temperature;
-
-// Использование константы вместо переменной позволяет задать размер для массива.
-const int numReadings = 5;
- 
-unsigned int readings[numReadings];      // данные, считанные с входного аналогового контакта
-byte index = 0;                  // индекс для значения, которое считывается в данный момент
-unsigned int total = 0;                  // суммарное значение
-
-//точки изменения температуры
-uint16_t  temp_point[10];
-uint16_t  time_point[10];
-uint8_t flag_point_switch = 0 ; //разрешение на изменение температуры по заданному алгоритму
-float32_t time_step[10] ;//время ,через которое меняется установочная температура (в сек) для каждого участка
-uint8_t interval = 0; // номер участка
-uint8_t compare = 0; //больше или меньше температура в начале участка, чем температура в конце участка
-//1  температура в начале участка больше 0 - температура в начале участка меньше
-uint8_t flag_first_run_interval = 0 ; //флаг(показатель) первого запуска интервала 1-уже запущен  0- не запущен
-uint16_t lastsecond = 0 ;//время крайнего вызова изменения setpoint
-uint8_t flag_reaching_Setpoint = 1; //флаг достижение установившего значения
-uint8_t flag_pause_exit = 0; //флаг выхода из паузы
+//проблема с расчетом шага при температуре большей температуры установочной, шаг как будто слишком маленький и setpoint очень быстро изменяется
+#include "stove.h" //все основные определения
 
 void setup() 
 {
+
    Serial.begin(115200);
    Serial.print("baud=115200ÿÿÿ"); //установка скорости экрана
-   //Отправка времени, с начала запуска микроконтроллера
-   setTime(0,0,0,1,12,18);
    t_MCU = now(); //записываем время перового запуска микроконтроллера
+   
    //turn the PID on
   //при первом запуске происходит также инициализация Initialize()
   myPID.SetMode(MANUAL);
-  myPID.SetSampleTime(SampleTime);
+  myPID.SetSampleTime(SAMPLE_TIME);
   myPID.SetOutputLimits(0, 1023);
+  
    //------PWM----------------
-  Timer3.initialize((long) SampleTime* 1000000);         // инициализировать timer1, и установить период равный периоду вызова ПИД
+  Timer3.initialize((long) SAMPLE_TIME * 1000);         // инициализировать timer1, и установить период равный периоду вызова ПИД
   Timer3.pwm( PIN_OUTPUT,  Output );                // задать шим сигнал  с  коэффициентом заполнения 
 
-  // Define the pins used to communicate with the MAX31856
+  // Создание объекта MAX31856 с определением пинов
   temperature = new MAX31856(SDI, SDO, CS, SCK);
-  // Initializing the MAX31855's registers
+  // Инициализация решистров
   temperature->writeRegister(REGISTER_CR0, CR0_INIT);
   temperature->writeRegister(REGISTER_CR1, CR1_INIT);
   temperature->writeRegister(REGISTER_MASK, MASK_INIT);
-  
-  // Wait for the first sample to be taken
+  // Ожидание отправки всех байтов
   delay(200);
 
-   // инициализация массива окна усредения (инициализируем первые 9 значений, т.к. 10 мы измерим сразу
+   // инициализация массива окна усредения (инициализируем первые 4 значений, т.к. 5 мы измерим сразу
    //------------------------------------------------
   while ( index < (numReadings-1))
   {
@@ -124,197 +40,49 @@ void setup()
     index ++;
   }
   readings[index]=0; // значение последенго показания равно 0
+  //так как в основном алгоритме мы вычитаем самое раннее значения из окна усреднения
   //---------------------------------------------------
 
-    //отправка на экран необходимых данных
-    delay(100);
-    
-    Serial.print((String)"settings.kp.txt=\""+"Kp="+Kp+"\""+char(255)+char(255)+char(255));
+    //отправка на экран необходимых данны 
+    Serial.print((String)"debug.kp.txt=\""+"Kp="+Kp+"\""+char(255)+char(255)+char(255));
     delay(50); 
-    Serial.print((String)"settings.ki.txt=\""+"Ki="+Ki+"\""+char(255)+char(255)+char(255)); 
+    Serial.print((String)"debug.ki.txt=\""+"Ki="+Ki+"\""+char(255)+char(255)+char(255)); 
     delay(50);
-    Serial.print((String)"settings.sp.txt=\""+"Setpoint="+Setpoint+"\""+char(255)+char(255)+char(255));
+    Serial.print((String)"debug.sp.txt=\""+"Setpoint="+Setpoint+"\""+char(255)+char(255)+char(255));
     delay(50);
     
 }
-
 
 void loop () 
 {  
 
-  if((millis() - last_time) >= SampleTime*1000  )
+  if((millis() - last_time) >= SAMPLE_TIME  )
   {
-    //----усредение----------------------
-    total= total - readings[index]; // вычитаем самое раннее значения из окна усреднения
-    readings[index] = temperature->readThermocouple(CELSIUS); //считывание показания 
-    // добавляем его к общей сумме:
-    total= total + readings[index];      
-    // продвигаемся к следующему значению в массиве:  
-    index ++;                    
-    // если мы в конце массива...
-    if (index >= numReadings)              
-      // ...возвращаемся к началу:
-      index = 0;                          
-    // вычисляем среднее значение:
-    Input = total / numReadings;
-    //----------------------------------------
+    movingAverage();
    
-    myPID.Compute();  
-    
+    myPID.Compute(); 
+
+    checkMAX31856();
+
     Timer3.setPwmDuty(PIN_OUTPUT,  Output); //выставляем скважность выходного сигнала
 
+    jumpderivative();
     
-    //отправка  температуры и выхода 
-    Serial.print((String)"main.temp.val="+Input+char(255)+char(255)+char(255)); 
-    delay(50);
-    Serial.print((String)"settings.temp.val="+Input+char(255)+char(255)+char(255)); 
-    delay(50);
-    Serial.print((String)"settings.ot.val="+Output+char(255)+char(255)+char(255));
-    delay(50);
-    Serial.print((String)"settings.kp.txt=\""+"Kp="+Kp+"\""+char(255)+char(255)+char(255));
-    delay(50); 
-    Serial.print((String)"settings.ki.txt=\""+"Ki="+Ki+"\""+char(255)+char(255)+char(255)); 
-    delay(50);
-    Serial.print((String)"settings.sp.txt=\""+"Setpoint="+Setpoint+"\""+char(255)+char(255)+char(255));
-    delay(50);
-    if(flag_point_switch)
-    {
-        //отправка времени с момента запуска алгоритма
-        t_ALG_run = t_ALG_last_run + now() - t_ALG ;
-        Serial.print((String)"main.day.val="+get_day(t_ALG_run)+char(255)+char(255)+char(255)); //(0-inf)
-        Serial.print((String)"main.minute1.val="+minute(t_ALG_run)+char(255)+char(255)+char(255)); //(0-60)
-        Serial.print((String)"main.hour1.val="+hour(t_ALG_run)+char(255)+char(255)+char(255)); //(0-24)
-    }
-      
+    senddata();
+
     last_time = millis();
   }
 
+    reachingSetpoint();
+
+    exitpause();
+
+    changeLinearly();
     
-    
-
-     
-    if((flag_reaching_Setpoint == 2)||(flag_reaching_Setpoint == 0)) // проверка: достигли ли мы установленного значения?
-    {
-        if(flag_reaching_Setpoint == 0)//первый запуск участка кода
-        {
-        //проверка больше или меньше температура в начале участка, чем установочное значение
-                    if(Input >= Setpoint)
-                    compare=1;
-                    else
-                    compare=0; 
-                    flag_reaching_Setpoint == 2;
-        }
-        if(((compare=1)&&(Input <= Setpoint))||((compare=0)&&(Input >= Setpoint))) //достижение последнего установочного значения 
-        {
-            flag_reaching_Setpoint = 1; // достигли
-        }
-    }
-
-    if(flag_pause_exit == 1) //проверка выполнения операций перед выходом из паузы
-    {
-        if(flag_reaching_Setpoint == 1) //достигли установленного значения
-        {
-           flag_point_switch = 1; //разрешение выполнения алгоритма
-           flag_pause_exit = 0; //выход из паузы осуществлен 
-        }
-    }
-
-    if(flag_point_switch) //алгоритм слежения за целевой функцией
-    {   
-        
-        if(flag_reaching_Setpoint == 1) //включаем только при достижении температуры установленного значения
-        {
-            
-
-            uint32_t second_t = second()-second(t_ALG) + (minute()-minute(t_ALG))*60+(hour()-hour(t_ALG))*3600+(day()-day(t_ALG))*86400+(month() - month(t_ALG))*2678400;//время с момента запуска алгоритма
-            
-            for(int i = 0; i <= 9; i++)//проверяем на каком мы интервале находимся
-            {   
-                float second_t1 =  second_t-lastsecond ; // время с момента последнего изменения установочной температуры
-                if(interval == i)
-                {
-                    if(flag_first_run_interval == 0) //операции перед включением интервала
-                    {  
-                        t_INT = now(); //запись времени первого запуска интервала
-                        int intreval_1 = interval + 1 ;                                                    //вывод номера интервала
-                        Serial.print((String)"main.point.val="+intreval_1+char(255)+char(255)+char(255));//вывод номера интервала
-                        flag_first_run_interval = 1 ; //интервал запущен
-                        //проверка больше или меньше температура в начале участка, чем температура в конце участка
-                        if(Input >= temp_point[i])
-                        compare=1;
-                        else
-                        compare=0; 
-                    }
-                    if(  second_t1 >= time_step[i]  ) // прошло время шага 
-                    {   
-                        //отправка времени с момента запуска интервала
-                        t_INT_run = t_INT_last_run + now() - t_ALG;
-                        Serial.print((String)"main.hour2.val="+get_hour(t_INT_run)+char(255)+char(255)+char(255));
-                        Serial.print((String)"main.minute2.val="+minute(t_INT_run)+char(255)+char(255)+char(255));
-                        
-                        if(compare==0) //если нужно увеличивать температуру, то идем вверх на 1 градус 
-                        Setpoint = Setpoint+1;
-                        else ////если нет, то идём  вниз
-                        Setpoint = Setpoint-1;
-                       
-                        if( ((second_t/60) >= time_point[i]))//достижение установленного времени
-                        {
-                            Setpoint = temp_point[i];//достигаем установленного значения температуры
-                            if(((compare=1)&&(Input <= temp_point[i]))||((compare=0)&&(Input >= temp_point[i])))
-                            {
-                                interval++;//переход на следующий интервал по достижению установленного времени и температуры
-                                flag_first_run_interval = 0 ; //интервал закончен, разрешение операций перед включением интервала 
-                                if(i=9)
-                                { // то есть закончился алгооритм
-                                    flag_point_switch = 0; // запрещаем алгоритму вызываться во избежания повторения алгоритма
-                                                        //для повторного вызова нужно перезапустить алгоритм через экран 
-                                }
-                            }
-                        }
-                        lastsecond = second_t;
-                    }
-                }
-            }
-        }
-        
-  
-    }
-    static String  inStr = ""; // Это будет приемник информации от Nextion (здесь только //1- байт номера команды /2- байт номера действия или данные)
-    static bool serialReadFlag = false; // А это флаг появление сообщения.
-
-   /******************************************************************/
-    // обработка приходящих данных
-    if (Serial.available()) 
-    {
-        uint8_t inn = Serial.read(); // читаем один байт
-        if(serialReadFlag) 
-        { // Если установлен флаг приема - действуем
-            if(inn == 59)
-            {     // ASCII : ";" // Находим конец передачи ";"
-                if(inStr.length() > 0) 
-                { // Проверяем длину сообщения и отправляем в "переработку"
-                    checkCommand(inStr); // В этой функции будем парсить сообщение
-                }
-                serialReadFlag = false; // Сбрасываем флаг приема
-            }
-            else 
-            { // А это нормальный прием
-                inStr += (char)inn; // Считываем данные
-            }
-        }
-        else 
-        { // А здесь отлавливается начало передачи от Nextion
-            if(inn == 35) 
-            { // ASCII : "#"
-                serialReadFlag = true; // После # начинаем чтение при следующем заходе
-                inStr = ""; // Но до этого очистим стринг приема
-            }
-        }
-    }
-    /**************************************************************************/
+    readNextioncommand();
 }
 
-void checkCommand(String ins) 
+void checkCommand(String ins) //парсинг сообщение от экрана
 {
     // У нас информация от Nextion состоит из двух частей,
     // первая буква - идентификатор действия
@@ -345,7 +113,7 @@ void checkCommand(String ins)
             // в пределах допустимого:
             ((output >= 0) && (output <= 1023)) ? Output = output : 1==1;
             //отправка на экран
-            Serial.print((String)"settings.ot.val=\""+Output+"\""+char(255)+char(255)+char(255));
+            Serial.print((String)"debug.ot.val=\""+Output+"\""+char(255)+char(255)+char(255));
             break;
         }
         case SETPOINT: 
@@ -379,32 +147,33 @@ void checkCommand(String ins)
             Ki = new_ki ;
             myPID.SetTunings(Kp, Ki);
             //отправка на экран
-            Serial.print((String)"settings.ki.txt=\""+"Ki="+Ki+"\""+char(255)+char(255)+char(255)); 
+            Serial.print((String)"debug.ki.txt=\""+"Ki="+Ki+"\""+char(255)+char(255)+char(255)); 
             break;
         }
         
         case TEMP_POINT  :
         {
-            // наше сообщение (пример) 1,20,600:2,40,300:3,60,300:4,0,0:
-            String value = ""; 
-            int point_number = 0;
-            int parametrs_num = 0;
-            int i;
-            for(i = 0; i < last.length(); i++ )
+            // наше сообщение (пример) 1,20,600:2,40,300:3,60,300:4,0,0:           
+            String value = ""; //проверяемый символ(строка)
+            int point_number = 0; //номер точки
+            int parametrs_num = 0; //номер параметра 
+            //(0-номер точки,1-время в мин,2-температура)
+            int i;//счетчик
+            for(i = 0; i < last.length(); i++ )//проходим по всей строке
             {   
-                value += last[i];
-                if(last[i] == ',')
+                value += last[i];//запись следующего символа
+                if(last[i] == ',')//запятая в роли разделителя
                 {
                     if(parametrs_num == 0)//номер точки
                     {
-                        point_number = value.toInt();
-                        parametrs_num ++;
+                        point_number = value.toInt();//запись номера точки
+                        parametrs_num ++;//переход следующий парметр
                         value = ""; //удаляем значение
                         continue;
                     }
                     if(parametrs_num == 1)//время
                     {
-                        time_point[point_number-1] = value.toInt();
+                        time_point[point_number-1] = value.toInt();//запись времени
                         parametrs_num = 0; // достигли max-1 параметра
                         value = ""; //удаляем значение
                         continue;
@@ -415,8 +184,8 @@ void checkCommand(String ins)
                     temp_point[point_number - 1] = value.toInt(); //записываем температуру
                     //расчет шага времени
                     if (point_number == 1) //записываем шаг времени
-                    {
-                        uint16_t denominator = (temp_point[point_number - 1] - Input);
+                    {//расчёт шага изменения температуры
+                        int16_t denominator = (temp_point[point_number - 1] - Input);
                         if (denominator != 0)
                         {
                             time_step[point_number - 1] = (60 * time_point[point_number - 1]);
@@ -424,35 +193,36 @@ void checkCommand(String ins)
                             time_step[point_number - 1] = abs(time_step[point_number - 1]);
                         }
                         else
-                            time_step[point_number - 1] = (60 + 60 * time_point[point_number - 1]);//если температура постоянна на участке
-                                                                                                //шаг времени > времени нахождении на участке
+                            time_step[point_number - 1] = 0;//если температура постоянна на участке
+                                                             //шаг времени = 0
                     }
                     else
                     {
-                        uint16_t denominator = (temp_point[point_number - 1] - temp_point[point_number - 2]);
+                        int16_t denominator = (temp_point[point_number - 1] - temp_point[point_number - 2]);
                         if (denominator != 0)
                         {
-                            time_step[point_number - 1] = 60 * (time_point[point_number - 1] - time_point[point_number - 2]);
+                            time_step[point_number - 1] = 60 * (time_point[point_number - 1]);
                             time_step[point_number - 1] /= denominator;
                             time_step[point_number - 1] = abs(time_step[point_number - 1]);  //последующие шаги времени 
                         }
                         else
-                            time_step[point_number - 1] = (60 * (1+time_point[point_number - 1] - time_point[point_number - 2]));//если температура постоянна на участке
-                                                                                                                            //шаг времени > времени нахождении на участке
+                            time_step[point_number - 1] = 0;//если температура постоянна на участке
+                                                            //шаг времени = 0
                     }
                     value = ""; //удаляем значение            
 		                     
                 }
-            } 
+            }
             break;
         }
         case POINT_SWITCH :  //8 включение новой программы  слежения за заданной температурой
         {//сообщение  действие = "номер программы" 
-                t_ALG = now(); // время начала запуска  алгоритма 
+                t_ALG = now(); // запись времени начала запуска  алгоритма 
                 Serial.print((String)"main.programm.val="+last.toInt()+char(255)+char(255)+char(255));//вывод номера программы
                 flag_point_switch = 1;
                 Setpoint = Input ; // записываем текущую температуру
                 interval = 0; //возвращение на 1-ый интервал
+                Serial.print((String)"cle 24,0"+char(255)+char(255)+char(255)); //очистить график
             break;
         }
         
@@ -460,8 +230,7 @@ void checkCommand(String ins)
         {
             if(last.toInt() == ON)//выход из паузы
             {
-                t_ALG = now();//перезаписываем время начла алгоритма 
-                t_INT = now();//и интервала
+                myPID.SetMode(AUTOMATIC);
                 flag_pause_exit = 1; // флаг выхода из паузы (разрешение проверки условий выхода из паузы)
                 //операции перед выходом из паузы
                 flag_reaching_Setpoint = 0; //разрешение операции перед выходом из паузы : достижение установленного значение 
@@ -469,10 +238,12 @@ void checkCommand(String ins)
             else //пауза
             {   
                 if(flag_point_switch == 1)
-                { //вход в паузу возможен только, если алгоритм уже работает        
-                    flag_point_switch = 0;
-                    t_ALG_last_run =t_ALG_last_run + now() - t_ALG; 
-                    t_INT_last_run =t_INT_last_run + now() - t_INT; 
+                { //вход в паузу возможен только, если алгоритм уже работает    
+                    myPID.SetMode(MANUAL); 
+                    Timer3.setPwmDuty(PIN_OUTPUT,  1023); //закрваем семистр, выключаем нагрев  
+                    flag_point_switch = 0; //выключаем линейное изменение по функции
+                    t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
+                    t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
                 }
             }
             
@@ -485,13 +256,305 @@ void checkCommand(String ins)
             if(flag_point_switch == 1)//возвращение возможно только, если алгоритм уже работает
             {
                 flag_reaching_Setpoint = 0; //разрешение операции перед возвращением на начало интервала : достижение установленного значение
-                interval = last.toInt(); 
-                Setpoint = temp_point[interval-1] ; // записываем температуру начала интервала 
+                interval = last.toInt(); //запись номера интервала 0-8
+                Setpoint = temp_point[interval] ; // записываем температуру начала интервала 
+                flag_first_run_interval = 0 ;//перед запуском интервала нужно проделать необходимые операции
+                interval++; //начинать быдем с следующего интервала
                 //если была нажата первая точка , то в Setpoint будет записано значение температуры  1 точки  
+                //и далее после достижения этой температуры, будут выполняться последующие интервалы
             }
             break;
-        }        
-    }
+        }  
+        case INTERVAL_HIGHLIGHING :  //11 подсвечивание интервала
+        {
+            if(last.toInt() == 1)// вызвано из окна с первыми 5 точками
+            {
+                if(interval < 5)
+                {
+                    int i = interval*8+1;
+                    int max_id = (interval+1)*8;
+                    for(i; i <= max_id  ; i++)
+                    {
+                        Serial.print((String)"points_1_5.b["+i+"].bco=64528"+char(255)+char(255)+char(255)); //поменять цвет
+                    }
+                }
+            }
+            else//вызвано из окна с последними 5 точками
+            {
+                if(interval > 4)
+                {
+                    int number_line = interval-4; 
+                    int i = number_line*8+1;
+                    int max_id = number_line*8;
+                    for(i; i <= max_id  ; i++)
+                    {
+                        Serial.print((String)"points_5_10.b["+i+"].bco=64528"+char(255)+char(255)+char(255)); //поменять цвет
+                    }
+                }
+            }
+            break;
+        }  
+        case MISTAKE :  //12 вывод сообщения об ошибке
+        {          
+            Serial.print((String)"vis "+mistake_id+",1"+char(255)+char(255)+char(255)); //показать сообщение об ошибке
+            break;
+        }   
+    }    
 }
 
 
+void checkMAX31856(void)//-------------------обработка оповещений от термоконтроллера----------------
+{
+    //-------------------обработка оповещений от термоконтроллера----------------
+    if((Input == FAULT_OPEN)&&(flag_point_switch == 1)) // No thermocouple
+    {//pause
+        mistake_id = 1; //запись номера ошибки 
+        Output = 1023 ; //выключаем нагрев
+        myPID.SetMode(MANUAL); //ручной режим ПИД
+        flag_point_switch = 0; //останавливаем работу на  интервале
+        t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
+        t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
+        Serial.print((String)"page FAULT_OPEN"+char(255)+char(255)+char(255)); //страница с оповещением
+        Serial.print((String)"main.bt1.val=1"+char(255)+char(255)+char(255)); //изменение состояния индикатора паузы
+        Serial.print((String)"main.ERROR.en=1"+char(255)+char(255)+char(255)); //включаем мигание экрана
+    }
+    if((Input == FAULT_VOLTAGE)&&(flag_point_switch == 1)) //  Under/over voltage error.  Wrong thermocouple type?
+    {//pause
+        mistake_id = 2;//запись номера ошибки
+        Output = 1023 ; //выключаем нагрев
+        myPID.SetMode(MANUAL); //ручной режим ПИД
+        flag_point_switch = 0;//останавливаем работу на  интервале
+        t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
+        t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
+        Serial.print((String)"page FAULT_VOLTAGE"+char(255)+char(255)+char(255)); //страница с оповещением
+        Serial.print((String)"main.bt1.val=1"+char(255)+char(255)+char(255)); //изменение состояния индикатора паузы
+        Serial.print((String)"main.ERROR.en=1"+char(255)+char(255)+char(255)); //включаем мигание экрана
+    }
+    if((Input == NO_MAX31856)&&(flag_point_switch == 1)) // MAX31856 not communicating or not connected
+    {//pause
+        mistake_id = 3;//запись номера ошибки
+        Output = 1023 ; //выключаем нагрев
+        myPID.SetMode(MANUAL); //ручной режим ПИД
+        flag_point_switch = 0;//останавливаем работу на  интервале
+        t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
+        t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
+        Serial.print((String)"page NO_MAX31856"+char(255)+char(255)+char(255)); //страница с оповещением
+        Serial.print((String)"main.bt1.val=1"+char(255)+char(255)+char(255)); //изменение состояния индикатора паузы
+        Serial.print((String)"main.ERROR.en=1"+char(255)+char(255)+char(255)); //включаем мигание экрана
+    }
+    if((Input == FAULT_OPEN)||(Input == FAULT_VOLTAGE )||(Input == NO_MAX31856)) { Input = 0 ;}; //вывод нулевой температуры
+    if((Input != FAULT_OPEN)&&(Input != FAULT_VOLTAGE )&&(Input != NO_MAX31856))
+    Serial.print((String)"main.ERROR.en=0"+char(255)+char(255)+char(255)); //выключаем мигание экрана, если нет оповищения об ошибке
+    //---------------------------------------------------------------------------
+}
+
+void readNextioncommand()// обработка приходящих данных
+{
+    static String  inStr = ""; // Это будет приемник информации от Nextion (здесь только //1- байт номера команды /2- байт номера действия или данные)
+    static bool serialReadFlag = false; // А это флаг появление сообщения.
+
+   /******************************************************************/
+    // обработка приходящих данных
+    if (Serial.available()) 
+    {
+        uint8_t inn = Serial.read(); // читаем один байт
+        if(serialReadFlag) 
+        { // Если установлен флаг приема - действуем
+            if(inn == 59)// ASCII : ";" // Находим конец передачи ";"
+            {     
+                if(inStr.length() > 0) // Проверяем длину сообщения и отправляем в "переработку"
+                { 
+                    checkCommand(inStr); // В этой функции будем парсить сообщение
+                }
+                serialReadFlag = false; // Сбрасываем флаг приема
+            }
+            else // А это нормальный прием
+            { 
+                inStr += (char)inn; // Считываем данные
+            }
+        }
+        else 
+        { // А здесь отлавливается начало передачи от Nextion
+            if(inn == 35) // ASCII : "#"
+            { 
+                serialReadFlag = true; // После # начинаем чтение при следующем заходе
+                inStr = ""; // Но до этого очистим стринг приема
+            }
+        }
+    }
+    /**************************************************************************/
+}
+
+void changeLinearly(void)//алгоритм слежения за целевой функцией
+{
+    if(flag_point_switch) //алгоритм слежения за целевой функцией
+    {   
+        if(flag_reaching_Setpoint == 1) //включаем только при достижении температуры установленного значения
+        {
+            for(int i = 0; i <= 9; i++)//проверяем на каком мы интервале находимся
+            {   
+                if(interval == i)
+                {
+                    if(flag_first_run_interval == 0) //операции перед включением интервала
+                    {  
+                        flag_first_run_interval = 1 ; //интервал запущен
+                        t_INT = now(); //запись времени первого запуска интервала 
+                        t_INT_last_run = 0 ;
+                        t_INT_run = t_INT_last_run + now() - t_INT;
+                        int intreval_1 = interval + 1 ;                                                    //вывод номера интервала
+                        Serial.print((String)"main.point.val="+intreval_1+char(255)+char(255)+char(255));//вывод номера интервала 
+                        //проверка больше или меньше температура в начале участка, чем температура в конце участка
+                        if(Input >= temp_point[i])
+                        compare=1;
+                        else
+                        compare=0; 
+                        lastsecond = millis();
+                    }
+                    if(time_step[i] != 0) //линейное изменение температуры
+                    {
+                        uint32_t time_after_step = millis()-lastsecond ; //время, пройденное после последнего шага (мс)
+                        if(  time_after_step >= (uint32_t)(time_step[i]*1000)  ) // прошло время шага 
+                        {   
+                            if(compare==0) //если нужно увеличивать температуру, то идем вверх на 1 градус 
+                            Setpoint = Setpoint+1;
+                            else ////если нет, то идём  вниз
+                            Setpoint = Setpoint-1;     
+                            if( get_minute(t_INT_run) >= time_point[i])//достижение установленного времени работы интервала
+                            {
+                                Setpoint = temp_point[i];//поддерживаем установленное значения температуры
+                                if(((compare==1)&&(Input <= temp_point[i]))||((compare==0)&&(Input >= temp_point[i])))
+                                {
+                                    flag_first_run_interval = 0 ; //интервал закончен, разрешение операций перед включением интервала 
+                                    if(i==9)
+                                    { // то есть закончился алгооритм
+                                        flag_point_switch = 0; // запрещаем алгоритму вызываться во избежания повторения алгоритма
+                                                            //для повторного вызова нужно перезапустить алгоритм через экран 
+                                    }
+                                    interval++;//переход на следующий интервал по достижению установленного времени и температуры
+                                }
+                            }
+                            lastsecond = millis() ;
+                        }
+                    }
+                    else //температура постоянна на участке
+                    {
+                        //Setpoint не изменяется, так как он установлен в предыдщем интервале, либо при запуске алгоритма
+                        if( get_minute(t_INT_run) >= time_point[i])//достижение установленного времени работы интервала
+                        {
+                            flag_first_run_interval = 0 ; //интервал закончен, разрешение операций перед включением интервала 
+                            if(i==9)
+                            { // то есть закончился алгооритм
+                                flag_point_switch = 0; // запрещаем алгоритму вызываться во избежания повторения алгоритма
+                                                    //для повторного вызова нужно перезапустить алгоритм через экран 
+                            }
+                            interval++;//переход на следующий интервал по достижению установленного времени и температуры
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+        
+  
+    }
+}
+
+void reachingSetpoint(void)// проверка: достигли ли мы установленного значения?
+{
+    if((flag_reaching_Setpoint == 2)||(flag_reaching_Setpoint == 0)) // проверка: достигли ли мы установленного значения?
+    {
+        if(flag_reaching_Setpoint == 0)//первый запуск участка кода
+        {
+        //проверка больше или меньше температура в начале участка, чем установочное значение
+                    if(Input >= Setpoint)
+                    compare=1;
+                    else
+                    compare=0; 
+                    flag_reaching_Setpoint == 2;
+        }
+        if(((compare==1)&&(Input <= Setpoint))||((compare==0)&&(Input >= Setpoint))) //достижение последнего установочного значения 
+        {
+            flag_reaching_Setpoint = 1; // достигли
+        }
+    }
+}
+
+void exitpause(void)//проверка выполнения операций перед выходом из паузы
+{
+    if(flag_pause_exit == 1) //проверка выполнения операций перед выходом из паузы
+    {
+        if(flag_reaching_Setpoint == 1) //достигли установленного значения
+        {
+           t_ALG = now();//перезаписываем время последнего включения алгоритма 
+           t_INT = now();//и интервала
+           flag_point_switch = 1; //разрешение выполнения алгоритма
+           flag_pause_exit = 0; //выход из паузы осуществлен 
+        }
+    }
+}
+
+void jumpderivative(void)//----------обработке экстренных скачков производной------------------
+{
+    //----------обработке экстренных скачков производной------------------
+    int dInput; 
+    dInput  = myPID.GetdInput(); //получаем значение производной (градус/сек)
+    if((dInput>= MAX_DERIVATIVE)&&(flag_point_switch == 1))
+    {//вход в паузу, если значение производной больше максимального и включен алгоритм
+        Output = 1023 ; //выключаем нагрев
+        myPID.SetMode(MANUAL); //ручной режим ПИД
+        flag_point_switch = 0;//останавливаем работу на  интервале
+        t_ALG_last_run =t_ALG_last_run + now() - t_ALG; // сохранение время работы алгоритма
+        t_INT_last_run =t_INT_last_run + now() - t_INT; // сохранение время работы интервала
+        Serial.print((String)"page jump_der"+char(255)+char(255)+char(255)); //страница с оповещением
+        Serial.print((String)"main.bt1.val=1"+char(255)+char(255)+char(255)); //изменение состояния индикатора паузы
+    }
+    //--------------------------------------------------------------------
+}
+
+void senddata(void)//отправка  данных на экран
+{
+    //отправка  данных на экран
+    Serial.print((String)"main.temp.val="+Input+char(255)+char(255)+char(255)); 
+    delay(50);
+    Serial.print((String)"debug.ot.val="+Output+char(255)+char(255)+char(255));
+    delay(50);
+    Serial.print((String)"debug.kp.txt=\""+"Kp="+Kp+"\""+char(255)+char(255)+char(255));
+    delay(50); 
+    Serial.print((String)"debug.ki.txt=\""+"Ki="+Ki+"\""+char(255)+char(255)+char(255)); 
+    delay(50);
+    Serial.print((String)"debug.sp.txt=\""+"Setpoint="+Setpoint+"\""+char(255)+char(255)+char(255));
+    delay(50);
+    uint8_t temp = Input*180/500; 
+    Serial.print((String)"add 7,0,"+temp+char(255)+char(255)+char(255)); //рисуем график
+    if(flag_point_switch)
+    {
+        //отправка времени с момента запуска алгоритма
+        t_ALG_run = t_ALG_last_run + now() - t_ALG;//расчет времени работы алг. и инт.
+        t_INT_run = t_INT_last_run + now() - t_INT;//------------------------------
+        Serial.print((String)"main.day.val="+get_day(t_ALG_run)+char(255)+char(255)+char(255)); //(0-inf)
+        Serial.print((String)"main.minute1.val="+minute(t_ALG_run)+char(255)+char(255)+char(255)); //(0-60)
+        Serial.print((String)"main.hour1.val="+hour(t_ALG_run)+char(255)+char(255)+char(255)); //(0-24)
+        //отправка времени с момента запуска интервала
+        Serial.print((String)"main.day2.val="+get_day(t_INT_run)+char(255)+char(255)+char(255));//(0-inf)
+        Serial.print((String)"main.hour2.val="+hour(t_INT_run)+char(255)+char(255)+char(255));//(0-24)
+        Serial.print((String)"main.minute2.val="+minute(t_INT_run)+char(255)+char(255)+char(255)); //(0-60)      
+    }
+}
+
+void  movingAverage(void)//скользящее среднее
+{
+    //----усредение----------------------
+    total= total - readings[index]; // вычитаем самое раннее значения из окна усреднения
+    readings[index] = temperature->readThermocouple(CELSIUS); //считывание показания 
+    // добавляем его к общей сумме:
+    total= total + readings[index];      
+    // продвигаемся к следующему значению в массиве:  
+    index ++;                    
+    // если мы в конце массива...
+    if (index >= numReadings)              
+      // ...возвращаемся к началу:
+      index = 0;                          
+    // вычисляем среднее значение:
+    Input = total / numReadings;
+    //----------------------------------------
+}
