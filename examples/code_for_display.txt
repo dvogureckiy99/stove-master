@@ -1,36 +1,36 @@
-//записываем первые 5 точек
+//Р·Р°РїРёСЃС‹РІР°РµРј РїРµСЂРІС‹Рµ 5 С‚РѕС‡РµРє
 for(point.val=0;point.val<=4;point.val+=1)
 {
     address.val=n1.val-1
 	address.val*=10
-	repo t1.txt,address.val  //часы 6 символов ячейки 0-3
-	repo t7.txt,address.val+4  //минуты				ячейки 4-5
-	repo t8.txt,address.val+6   //температура   ячейки 6-9
+	repo t1.txt,address.val  //С‡Р°СЃС‹ 6 СЃРёРјРІРѕР»РѕРІ В¤С‡РµР№РєРё 0-3
+	repo t7.txt,address.val+4  //РјРёРЅСѓС‚С‹				В¤С‡РµР№РєРё 4-5
+	repo t8.txt,address.val+6   //С‚РµРјРїРµСЂР°С‚СѓСЂР°   В¤С‡РµР№РєРё 6-9
 }
 
 
-//отправка точек
-//в формате "номерточки,время(мин),температура:следующая точка:"
-print "#7"//начало отправки
+//РѕС‚РїСЂР°РІРєР° С‚РѕС‡РµРє
+//РІ С„РѕСЂРјР°С‚Рµ "РЅРѕРјРµСЂС‚РѕС‡РєРё,РІСЂРµРјВ¤(РјРёРЅ),С‚РµРјРїРµСЂР°С‚СѓСЂР°:СЃР»РµРґСѓСЋС‰Р°В¤ С‚РѕС‡РєР°:"
+print "#7"//РЅР°С‡Р°Р»Рѕ РѕС‚РїСЂР°РІРєРё
 for(point.val=0;point.val<=9;point.val+=1)
 {
     address.val=point.val
 	address.val*=10
     point.val+=1
     covx point.val,point1.txt,0,0
-    print point1.txt //номер ячейки
+    print point1.txt //РЅРѕРјРµСЂ В¤С‡РµР№РєРё
     point.val-=1
     print ","
     repo hour1.txt,address.val
     repo minute1.txt,address.val+4
-    covx hour1.txt,hour.val,0,0 //конвертируем значение в число , так как так удобнее
+    covx hour1.txt,hour.val,0,0 //РєРѕРЅРІРµСЂС‚РёСЂСѓРµРј Р·РЅР°С‡РµРЅРёРµ РІ С‡РёСЃР»Рѕ , С‚Р°Рє РєР°Рє С‚Р°Рє СѓРґРѕР±РЅРµРµ
     covx minute1.txt,minute.val,0,0 
-    hour.val*=60 //переводим в минуты
+    hour.val*=60 //РїРµСЂРµРІРѕРґРёРј РІ РјРёРЅСѓС‚С‹
     minute.val=minute.val+hour.val
     covx minute.val,minute2.txt,0,0 
     print minute2.txt 
     print ","
-	rept address.val+6,4   //температура   ячейки 6-9
+	rept address.val+6,4   //С‚РµРјРїРµСЂР°С‚СѓСЂР°   В¤С‡РµР№РєРё 6-9
     print ":"
     
 }
