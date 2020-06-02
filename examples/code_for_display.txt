@@ -1,0 +1,37 @@
+//записываем первые 5 точек
+for(point.val=0;point.val<=4;point.val+=1)
+{
+    address.val=n1.val-1
+	address.val*=10
+	repo t1.txt,address.val  //часы 6 символов €чейки 0-3
+	repo t7.txt,address.val+4  //минуты				€чейки 4-5
+	repo t8.txt,address.val+6   //температура   €чейки 6-9
+}
+
+
+//отправка точек
+//в формате "номерточки,врем€(мин),температура:следующа€ точка:"
+print "#7"//начало отправки
+for(point.val=0;point.val<=9;point.val+=1)
+{
+    address.val=point.val
+	address.val*=10
+    point.val+=1
+    covx point.val,point1.txt,0,0
+    print point1.txt //номер €чейки
+    point.val-=1
+    print ","
+    repo hour1.txt,address.val
+    repo minute1.txt,address.val+4
+    covx hour1.txt,hour.val,0,0 //конвертируем значение в число , так как так удобнее
+    covx minute1.txt,minute.val,0,0 
+    hour.val*=60 //переводим в минуты
+    minute.val=minute.val+hour.val
+    covx minute.val,minute2.txt,0,0 
+    print minute2.txt 
+    print ","
+	rept address.val+6,4   //температура   €чейки 6-9
+    print ":"
+    
+}
+print ";"
