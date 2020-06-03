@@ -3,6 +3,6 @@
 
 В [данной папке]() находится проект.
 
-1. Расчёт времени решулирования и запись в файл в [calculating_sattling_time.ino](calculating_sattling_time.ino)
+1. Расчёт времени регулирования и запись в файл в [calculating_sattling_time.ino](calculating_sattling_time.ino)
 
 2. Код, который используется для быстрого  написания функций на дисплее [code_for_display.txt](code_for_display.txt)
