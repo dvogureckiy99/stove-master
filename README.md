@@ -52,4 +52,8 @@
 
 Документация на дисплей [здесь](components/nextion_docs/The_Nextion_Editor_Guide_trans.pdf)
 Программа для дисплея Nextion была написана на специальном языке. Инструкции описаны в [этом документе](components/nextion_docs/istruction_set_trans.pdf).
-Программа для компиляции [stove.HMI](/stove.HMI)
+Все файлы по работе интерфейса находятся в папке [HMI_Nextion](/HMI_Nextion). 
+
+1. [Техническое задание на интерфейс](HMI_Nextion/TT_interface.pdf)
+2. [Программа для компиляции - stove.HMI](HMI_Nextion/stove.HMI)
+3. [Приблизительный дизайн интерфейса](HMI_Nextion/images_for_HMI/first_interface.jpg)
