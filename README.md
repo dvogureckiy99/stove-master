@@ -31,7 +31,7 @@
 
 Картинки с фотографиями [находятся здесь](docs/images)
 
-1. Главный алгоритм здесь [main_loop.html](docs/images/main_loop.html) и здесь [main_loop.md](docs/images/main_loop.md)
+1. Главный алгоритм изображен в виде блок-схемы в программе draw.io здесь [main_loop.html](docs/images/main_loop.html) и здесь [main_loop.md](docs/images/main_loop.md) 
 2.
 
 Видео с демонстрацией работы находятся на хостинге youtube:
