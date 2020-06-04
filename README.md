@@ -28,11 +28,18 @@
 1. [Презентация доклада в формате pdf](/docs/presentation.pdf "открыть")
 1. [Доклад для сдачи дисциплины "Микропроцессорные устройства систем управления" в формате pdf](/docs/report_for_university.pdf)
 1. [Доклад для сдачи дисциплины "Микропроцессорные устройства систем управления" в формате WORD](/docs/report_for_university.docx)
-
+1. [Алгоритм подбора коэффициентов ПИД-регулятора](docs/PID_coeff_choose.php)
+1. Рукописные наброски псевдокода и размышления на листе:
+	1. Подбор коэффициентов ПИД-регулятора [1](docs/pseudo-code_handwritten_outline/PIR_setting1.pdf),[2](docs/pseudo-code_handwritten_outline/PIR_setting2.pdf)
+	1. [Отправка данных целевой функции на MCU с Nextion (SD-card)](docs/pseudo-code_handwritten_outline/sending_target_function_data.pdf)
+	2. [Структурная схема модели САУ](docs/pseudo-code_handwritten_outline/ACS_model.pdf)
+	3. [Установка точек на дисплее Nextion](docs/pseudo-code_handwritten_outline/setting_point_on_Nextion.pdf)
+	4. [Сколько памяти занимают компоненты variable](docs/pseudo-code_handwritten_outline/var_length_in_memory.pdf)
+	
 Картинки с фотографиями [находятся здесь](docs/images)
 
-1. Главный алгоритм изображен в виде блок-схемы в программе draw.io здесь [main_loop.html](docs/images/main_loop.html) и здесь [main_loop.md](docs/images/main_loop.md) 
-2.
+1. Главный алгоритм изображен в виде блок-схемы в программе draw.io здесь [main_loop.html](https://app.diagrams.net/#G1erNzenc1y8jMb31vDRvs-M2VeMvLVpRX) 
+
 
 Видео с демонстрацией работы находятся на хостинге youtube:
 
