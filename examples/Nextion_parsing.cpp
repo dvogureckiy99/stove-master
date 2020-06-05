@@ -1,20 +1,20 @@
-//парсинг строки с дисплея Nextion. Отработка алгоритма
+//РїР°СЂСЃРёРЅРі СЃС‚СЂРѕРєРё СЃ РґРёСЃРїР»РµСЏ Nextion. РћС‚СЂР°Р±РѕС‚РєР° Р°Р»РіРѕСЂРёС‚РјР°
 #include "stdafx.h"
 #include <iostream>
 #include <cstring>
 #include <string>
 #include <stdio.h>
 #include <cctype>
-#include <conio.h> //библиотека содержит функции для работы с экраном
+#include <conio.h> //Р±РёР±Р»РёРѕС‚РµРєР° СЃРѕРґРµСЂР¶РёС‚ С„СѓРЅРєС†РёРё РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ СЌРєСЂР°РЅРѕРј
 
 
-#define OUTPUT_STRING "1,10,100:2,20,100:3,25,300:4,60,200:" //Выводимая строка (обязательно прописными буквами !!!)
-//   ТС1=600/71=8,45   8*71=568   поднимется на 32 секунды раньше , чем нужно
+#define OUTPUT_STRING "1,10,100:2,20,100:3,25,300:4,60,200:" //Р’С‹РІРѕРґРёРјР°СЏ СЃС‚СЂРѕРєР° (РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ РїСЂРѕРїРёСЃРЅС‹РјРё Р±СѓРєРІР°РјРё !!!)
+//   РўРЎ1=600/71=8,45   8*71=568   РїРѕРґРЅРёРјРµС‚СЃСЏ РЅР° 32 СЃРµРєСѓРЅРґС‹ СЂР°РЅСЊС€Рµ , С‡РµРј РЅСѓР¶РЅРѕ
 //   
 using namespace std;
 
 int main() {
-	// наше сообщение (пример) 1,10,100:2,20,100:3,25,300:4,60,300:
+	// РЅР°С€Рµ СЃРѕРѕР±С‰РµРЅРёРµ (РїСЂРёРјРµСЂ) 1,10,100:2,20,100:3,25,300:4,60,300:
 	uint16_t time_point[10];
 	uint16_t temp_point[10];
 	float time_step[10];
@@ -29,39 +29,39 @@ int main() {
 		value += last[i];
 		if (last[i] == ',')
 		{
-			if (parametrs_num == 0)//номер точки
+			if (parametrs_num == 0)//РЅРѕРјРµСЂ С‚РѕС‡РєРё
 			{
 				point_number = stoi(value);
 				parametrs_num++;
-				value = ""; //удаляем значение
+				value = ""; //СѓРґР°Р»СЏРµРј Р·РЅР°С‡РµРЅРёРµ
 				continue;
 			}
-			if (parametrs_num == 1)//время
+			if (parametrs_num == 1)//РІСЂРµРјСЏ
 			{
 				time_point[point_number - 1] = stoi(value);
-				parametrs_num = 0; // достигли max-1 параметра
-				value = ""; //удаляем значение
+				parametrs_num = 0; // РґРѕСЃС‚РёРіР»Рё max-1 РїР°СЂР°РјРµС‚СЂР°
+				value = ""; //СѓРґР°Р»СЏРµРј Р·РЅР°С‡РµРЅРёРµ
 				continue;
 			}
 		}
 		if (last[i] == ':')
 		{
-			temp_point[point_number - 1] = stoi(value); //записываем температуру
-															//расчет шага времени
-			if (point_number == 1) //записываем шаг времени
+			temp_point[point_number - 1] = stoi(value); //Р·Р°РїРёСЃС‹РІР°РµРј С‚РµРјРїРµСЂР°С‚СѓСЂСѓ
+															//СЂР°СЃС‡РµС‚ С€Р°РіР° РІСЂРµРјРµРЅРё
+			if (point_number == 1) //Р·Р°РїРёСЃС‹РІР°РµРј С€Р°Рі РІСЂРµРјРµРЅРё
 			{
 				int16_t denominator = (temp_point[point_number - 1] - Input);
 				if (denominator != 0)
 				{
 					time_step[point_number - 1] = (60 * time_point[point_number - 1]);
 					//cout << "denominator[" << point_number - 1 << "]=" << denominator << endl;
-					time_step[point_number - 1] /= (denominator); //1 шаг времени
+					time_step[point_number - 1] /= (denominator); //1 С€Р°Рі РІСЂРµРјРµРЅРё
 					//cout << " time_step_before_abs[" << point_number - 1 << "]=" << time_step[point_number - 1] << endl;
 					time_step[point_number - 1] = abs(time_step[point_number - 1]);
 				}
 				else
-					time_step[point_number - 1] = 0;//если температура постоянна на участке
-													//шаг времени = 0
+					time_step[point_number - 1] = 0;//РµСЃР»Рё С‚РµРјРїРµСЂР°С‚СѓСЂР° РїРѕСЃС‚РѕСЏРЅРЅР° РЅР° СѓС‡Р°СЃС‚РєРµ
+													//С€Р°Рі РІСЂРµРјРµРЅРё = 0
 			}
 			else
 			{
@@ -70,13 +70,13 @@ int main() {
 				{
 					time_step[point_number - 1] = 60 * (time_point[point_number - 1] - time_point[point_number - 2]);
 					time_step[point_number - 1] /= denominator;
-					time_step[point_number - 1] = abs(time_step[point_number - 1]);  //последующие шаги времени 
+					time_step[point_number - 1] = abs(time_step[point_number - 1]);  //РїРѕСЃР»РµРґСѓСЋС‰РёРµ С€Р°РіРё РІСЂРµРјРµРЅРё 
 				}
 				else
-					time_step[point_number - 1] = 0;//если температура постоянна на участке
-													//шаг времени = 0
+					time_step[point_number - 1] = 0;//РµСЃР»Рё С‚РµРјРїРµСЂР°С‚СѓСЂР° РїРѕСЃС‚РѕСЏРЅРЅР° РЅР° СѓС‡Р°СЃС‚РєРµ
+													//С€Р°Рі РІСЂРµРјРµРЅРё = 0
 			}
-			value = ""; //удаляем значение            
+			value = ""; //СѓРґР°Р»СЏРµРј Р·РЅР°С‡РµРЅРёРµ            
 		}
 	}
 	for (int i = 0; i < 10; i++)
@@ -88,6 +88,6 @@ int main() {
 	cout << endl;
 	
 
-	_getch(); //функция ввода символа с клавиатуры. Используется для задержки
+	_getch(); //С„СѓРЅРєС†РёСЏ РІРІРѕРґР° СЃРёРјРІРѕР»Р° СЃ РєР»Р°РІРёР°С‚СѓСЂС‹. РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РґР»СЏ Р·Р°РґРµСЂР¶РєРё
 	return 0;
 }

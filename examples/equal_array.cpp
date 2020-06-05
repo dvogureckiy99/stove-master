@@ -4,7 +4,7 @@
 #include <string>
 #include <stdio.h>
 #include <cctype>
-#include <conio.h> //библиотека содержит функции для работы с экраном
+#include <conio.h> //Р±РёР±Р»РёРѕС‚РµРєР° СЃРѕРґРµСЂР¶РёС‚ С„СѓРЅРєС†РёРё РґР»СЏ СЂР°Р±РѕС‚С‹ СЃ СЌРєСЂР°РЅРѕРј
 
 uint8_t equality_of_array_values(unsigned int *array, uint8_t n);
 
@@ -16,7 +16,7 @@ int main() {
 	if (equality_of_array_values(A, n)) { cout << "all member A are equal\n"; }
 	else { cout << "all members A are not equal\n"; }
 	
-	_getch(); //функция ввода символа с клавиатуры. Используется для задержки
+	_getch(); //С„СѓРЅРєС†РёСЏ РІРІРѕРґР° СЃРёРјРІРѕР»Р° СЃ РєР»Р°РІРёР°С‚СѓСЂС‹. РСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РґР»СЏ Р·Р°РґРµСЂР¶РєРё
 	return 0;
 }
 
