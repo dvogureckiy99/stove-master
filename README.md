@@ -45,7 +45,7 @@
 
 Видео с демонстрацией работы находятся на хостинге youtube:
 
-[В видео](https://youtu.be/TroMaXGrYXM) демонстриуется работа интерфейса дисплея.
+В видео демонстриуется работа интерфейса дисплея.
 
 <a href="http://www.youtube.com/watch?feature=player_embedded&v=TroMaXGrYXM" target="_blank"><img src="http://img.youtube.com/vi/TroMaXGrYXM/0.jpg" 
 alt="ALT-ТЕКСТ ИЗОБРАЖЕНИЯ" width="192" height="144" border="10" /></a>
