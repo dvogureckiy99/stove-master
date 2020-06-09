@@ -1,0 +1,175 @@
+wscilab language
+// Settling time with default 2% limits
+// The user may change this by setting SettlingTimeThreshold to the desired value 
+function[settlingTime] = settlingtime(y,t,yfinal,SettlingTimeThreshold)
+    ns = length(t) ;
+    if  abs(yfinal) < %inf
+        err = abs(y-yfinal);
+        rev_err = err(length(err):-1:1) ;
+        tol = SettlingTimeThreshold* max(err);
+        iSettle = length(err) - find(rev_err > tol, 1) + 1 ; 
+        if isempty(iSettle)
+            // Pure gain
+            settlingTime = 0;
+        elseif iSettle==ns
+            //Has not settled
+            settlingTime = %nan;
+        elseif y(iSettle)~=y(iSettle+1)
+            // Interpolate for more accuracy
+            ySettle = yfinal + sign(y(iSettle)-yfinal) * tol;
+            settlingTime = t(iSettle)+(t(iSettle)-t(iSettle+1))/(y(iSettle)-y(iSettle+1))*(ySettle-y(iSettle));
+        else
+            // Discrete time or pure gain
+            settlingTime = t(iSettle+1);
+        end 
+    else
+        // System is not stable
+        settlingTime = %nan ;
+    end
+endfunction
+
+
+%------------------------ Matlab func ----------------------------------------------------
+if nargin==0
+   ctrlMsgUtils.error('Controllib:general:OneOrMoreInputsRequired','stepinfo','stepinfo')
+else
+   % Parse input list and perform consistency checks
+   try    %конструкци€ выводит ошибку до catch
+      [y,t,yfinal,SettlingTimeThreshold,RiseTimeLims,Ts] = ...
+         utRespInfoCheck(y,varargin{:});
+   catch E
+      throw(E)
+   end
+end
+
+% Loop over each I/O pair
+sio = size(yfinal);
+s = struct(...
+   'RiseTime',cell(sio),...  % 'им€ элемента', значение элем., ‘ункци€ c = cell(n) создает массив €чеек, состо€щих из пустых матриц, размера nхn.
+   'SettlingTime',[],...
+   'SettlingMin',[],...
+   'SettlingMax',[],...
+   'Overshoot',[],...
+   'Undershoot',[],...
+   'Peak',[],...
+   'PeakTime',[]);
+extra = struct(...
+   'RiseTimeLow',cell(sio),...
+   'RiseTimeHigh',[]);
+for ct=1:prod(sio)
+   [s(ct),extra(ct)] = LocalGetInfo(s(ct),extra(ct),...
+      y(:,ct),t,yfinal(ct),SettlingTimeThreshold,RiseTimeLims,Ts);
+end
+%------------------ Local Functions -----------------------------
+%         выход     им€ функц.   --- вход --------------------------------------
+function [s,xt] = LocalGetInfo(s,xt,y,t,yf,SettlingTimeThreshold,RiseTimeLims,Ts)
+% Computes step response metrics for SISO response
+% YF = final value
+
+%¬ соответствии с IEEE 754, такое состо€ние  NaN задаЄтс€ через установку показател€ степени
+%в зарезервированное значение 11Е11, а мантиссы Ч во что угодно,  кроме 0 (зарезервированное значение дл€ машинной бесконечности)
+%
+%  
+%
+%
+
+% Rise time and settling time
+if isfinite(yf) %TF = isfinite(A) returns an array the same size as A containing logical true (1) where the elements of the array A are finite and logical false 
+                %(0) where they are infinite or NaN.
+                
+   % Converging response
+   ns = length(t);  %тип double  умолчанию . длина структуры
+   
+   % Peak response
+   [s.Peak,ipeak] = max(abs(y));
+   s.PeakTime = t(ipeak);
+
+   % Get time TLOW of first crossing of y = y0 + RiseTimeLims(1)*(yf-y0)
+   yLow = y(1) + RiseTimeLims(1)*(yf-y(1));
+   iLow = 1+find((y(1:ns-1)-yLow).*(y(2:ns)-yLow)<=0,1);
+   if isempty(iLow)
+      % Has not yet reached RiseTimeLims(1) level
+      tLow = NaN;
+   elseif Ts==0 && iLow>1 && y(iLow)~=y(iLow-1)
+      % Interpolate for more accuracy
+      tLow = t(iLow) + (t(iLow)-t(iLow-1))/(y(iLow)-y(iLow-1)) * (yLow-y(iLow));
+   else
+      % Discrete time or pure gain
+      tLow = t(iLow);
+   end
+   
+   % Get time THIGH of first crossing of y = y0 + RiseTimeLims(2)*(yf-y0)
+   yHigh = y(1) + RiseTimeLims(2)*(yf-y(1));
+   iHigh = 1+find((y(1:ns-1)-yHigh).*(y(2:ns)-yHigh)<=0,1);
+   if isempty(iHigh)
+      % Has not yet reached RiseTimeLims(2) level
+      tHigh = NaN;
+      s.SettlingMin = NaN;
+      s.SettlingMax = NaN;
+   else
+      if Ts==0 && iHigh>1 && y(iHigh)~=y(iHigh-1)
+         % Interpolate for more accuracy
+         tHigh = t(iHigh) + (t(iHigh)-t(iHigh-1))/(y(iHigh)-y(iHigh-1)) * (yHigh-y(iHigh));
+      else
+         % Discrete time or pure gain
+         tHigh = t(iHigh);
+      end
+      yRisen = y(iHigh:end);
+      s.SettlingMin = min(yRisen);
+      s.SettlingMax = max(yRisen);
+   end
+   
+   % Rise time
+   s.RiseTime = tHigh - tLow;
+   xt.RiseTimeLow = tLow;
+   xt.RiseTimeHigh = tHigh;
+   
+   % Settling Time
+   err = abs(y-yf);
+   tol = SettlingTimeThreshold * max(err);
+   iSettle = find(err>tol,1,'last');
+   if isempty(iSettle)
+      % Pure gain
+      s.SettlingTime = 0;
+   elseif iSettle==ns
+      % Has not settled
+      s.SettlingTime = NaN;
+   elseif Ts==0 && y(iSettle)~=y(iSettle+1)
+      % Interpolate for more accuracy
+      ySettle = yf + sign(y(iSettle)-yf) * tol;
+      s.SettlingTime = t(iSettle) + ...
+         (t(iSettle)-t(iSettle+1))/(y(iSettle)-y(iSettle+1)) * (ySettle-y(iSettle));
+   else
+      % Discrete time or pure gain
+      s.SettlingTime = t(iSettle+1);
+   end
+   
+   % Overshoot and undershoot
+   if yf==0
+      s.Overshoot = Inf;
+      if all(y>=0)
+         s.Undershoot = 0;
+      else
+         s.Undershoot = Inf;
+      end
+   else
+      yrel = y/yf;
+      s.Overshoot = 100 * max(0,max(yrel-1));
+      s.Undershoot = -100 * min(0,min(yrel));
+   end
+      
+else
+   % Unstable response or unknown steady state
+   s.RiseTime = NaN;
+   s.SettlingTime = NaN;
+   s.SettlingMin = NaN;
+   s.SettlingMax = NaN;
+   s.Overshoot = NaN;
+   s.Undershoot = NaN;
+   s.Peak = Inf;
+   s.PeakTime = Inf;
+   xt.RiseTimeLow = Inf;
+   xt.RiseTimeHigh = Inf;
+
+end
+  

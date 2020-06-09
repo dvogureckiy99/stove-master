@@ -37,6 +37,7 @@
 	2. [Структурная схема модели САУ](docs/pseudo-code_handwritten_outline/ACS_model.pdf)
 	3. [Установка точек на дисплее Nextion](docs/pseudo-code_handwritten_outline/setting_point_on_Nextion.pdf)
 	4. [Сколько памяти занимают компоненты variable](docs/pseudo-code_handwritten_outline/var_length_in_memory.pdf)
+1.  [Примеры реализации расчте показателей качества для переходной характеристики в MATLAB](examples/matlab_stepinfo/)	
 	
 Картинки с фотографиями [находятся здесь](docs/images)
 
